@@ -1077,16 +1077,16 @@ odbcIterateForeignScan(ForeignScanState *node)
                     elog(NOTICE, "I value: %i", i-1);
                     elog(NOTICE, "K value: %i", k);
 #endif
-                    col_position_mask[i] = k; 
-                    col_size_array[i]  = (int) ColumnSizePtr;;
+                    col_position_mask[i-1] = k; 
+                    col_size_array[i-1]  = (int) ColumnSizePtr;;
                     break;
                 }
             }
             /* if current column is not used by the foreign table */
             if (!found)
             {
-                col_position_mask[i] = -1;
-                col_size_array[i] = -1;
+                col_position_mask[i-1] = -1;
+                col_size_array[i-1] = -1;
             }
 
             pfree(ColumnName);
@@ -1121,13 +1121,16 @@ odbcIterateForeignScan(ForeignScanState *node)
 
 #ifdef DEBUG
             /* Dump the content of the mask */
-			int p;
-            elog(NOTICE, "Mask index: %i", mask_index);
-            elog(NOTICE, "Content of the mask:");
-            for (p=0; p<num_of_result_cols; p++)
-            {
-                elog(NOTICE, "%i => %i (%i)", p, col_position_mask[p], col_size_array[p]);
-            }
+			if (i == 1)
+			{
+				int p;
+				elog(NOTICE, "Mask index: %d", mask_index);
+				elog(NOTICE, "Content of the mask:");
+				for (p=0; p<num_of_result_cols; p++)
+				{
+					elog(NOTICE, "%d => %d (%d)", p, col_position_mask[p], col_size_array[p]);
+				}
+			}
 #endif
             /* Ignore this column if position is marked as invalid */
             if (mapped_pos == -1)
