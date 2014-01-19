@@ -399,7 +399,8 @@ odbcGetOptions(Oid foreigntableid, char **svr_dsn, char **svr_database, char **s
     }
 
 #ifdef DEBUG
-    elog(NOTICE, "list length: %i", (*mapping_list)->length);
+    elog(NOTICE, "mapping list length: %i", 
+		 *mapping_list ? (*mapping_list)->length : 0);
 #endif
 
     /* Default values, if required */
@@ -1006,6 +1007,7 @@ odbcIterateForeignScan(ForeignScanState *node)
     StringInfoData	*table_columns = festate->table_columns;
     int *col_position_mask;
     int *col_size_array;
+	EState     *estate = node->ss.ps.state;
 
 #ifdef DEBUG
     elog(NOTICE, "odbcIterateForeignScan");
@@ -1034,11 +1036,14 @@ odbcIterateForeignScan(ForeignScanState *node)
         int i;
         int k;
         bool found = FALSE;
+		MemoryContext old_cxt;
 
         /* Allocate memory for the masks */
         num_of_result_cols = columns;
+		old_cxt = MemoryContextSwitchTo(estate->es_query_cxt);
         col_position_mask = palloc(sizeof(int) * columns);
-        col_size_array = palloc(sizeof(int) * columns);;
+        col_size_array = palloc(sizeof(int) * columns);
+		MemoryContextSwitchTo(old_cxt);
         /* Obtain the column information of the first row. */
         for (i = 1; i <= columns; i++)
         {
