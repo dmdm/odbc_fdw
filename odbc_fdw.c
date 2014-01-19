@@ -70,8 +70,8 @@ typedef struct odbcFdwExecutionState
     int				num_of_table_cols;
     StringInfoData	*table_columns;
     bool			first_iteration;
-    List			*col_position_mask;
-    List			*col_size_array;
+    int			    *col_position_mask;
+    int			    *col_size_array;
     char			*sql_count;
 } odbcFdwExecutionState;
 
@@ -1037,9 +1037,9 @@ odbcIterateForeignScan(ForeignScanState *node)
         bool found = FALSE;
 
         /* Allocate memory for the masks */
-        col_position_mask = NIL;
-        col_size_array = NIL;
         num_of_result_cols = columns;
+        col_position_mask = palloc(sizeof(int) * columns);
+        col_size_array = palloc(sizeof(int) * columns);;
         /* Obtain the column information of the first row. */
         for (i = 1; i <= columns; i++)
         {
@@ -1073,29 +1073,29 @@ odbcIterateForeignScan(ForeignScanState *node)
                     elog(NOTICE, "I value: %i", i-1);
                     elog(NOTICE, "K value: %i", k);
 #endif
-                    col_position_mask = lappend_int(col_position_mask, k);
-                    col_size_array = lappend_int(col_size_array, (int) ColumnSizePtr);
+                    col_position_mask[i] = k; 
+                    col_size_array[i]  = (int) ColumnSizePtr;;
                     break;
                 }
             }
             /* if current column is not used by the foreign table */
             if (!found)
             {
-                col_position_mask = lappend_int(col_position_mask, -1);
-                col_size_array = lappend_int(col_size_array, -1);
+                col_position_mask[i] = -1;
+                col_size_array[i] = -1;
             }
 
             pfree(ColumnName);
         }
         festate->num_of_result_cols = num_of_result_cols;
-        festate->col_position_mask = list_copy(col_position_mask);
-        festate->col_size_array = list_copy(col_size_array);
+        festate->col_position_mask = col_position_mask;
+        festate->col_size_array = col_size_array;
         festate->first_iteration = FALSE;
     }
     else
     {
         num_of_result_cols = festate->num_of_result_cols;
-        col_position_mask = list_copy(festate->col_position_mask);
+        col_position_mask = festate->col_position_mask;
         col_size_array = festate->col_size_array;
     }
 
@@ -1112,8 +1112,8 @@ odbcIterateForeignScan(ForeignScanState *node)
             char * buf;
 
             int mask_index = i - 1;
-            int col_size = list_nth_int(col_size_array, mask_index);
-            int mapped_pos = list_nth_int(col_position_mask, mask_index);
+            int col_size = col_size_array[mask_index];
+            int mapped_pos = col_position_mask[mask_index];
 
 #ifdef DEBUG
             /* Dump the content of the mask */
@@ -1122,7 +1122,7 @@ odbcIterateForeignScan(ForeignScanState *node)
             elog(NOTICE, "Content of the mask:");
             for (p=0; p<num_of_result_cols; p++)
             {
-                elog(NOTICE, "%i => %i (%i)", p, list_nth_int(col_position_mask, p), list_nth_int(col_size_array, p));
+                elog(NOTICE, "%i => %i (%i)", p, col_position_mask[p], col_size_array[p]);
             }
 #endif
             /* Ignore this column if position is marked as invalid */
@@ -1138,13 +1138,13 @@ odbcIterateForeignScan(ForeignScanState *node)
             if (SQL_SUCCEEDED(ret))
             {
                 /* Handle null columns */
-                if (indicator == SQL_NULL_DATA) strcpy(buf, "NULL");
-                initStringInfo(&col_data);
-                appendStringInfoString (&col_data, buf);
+                if (indicator == SQL_NULL_DATA)
+					values[mapped_pos] = NULL;
+				else
+					values[mapped_pos] = pstrdup(buf);
 
-                values[mapped_pos] = col_data.data;
 #ifdef DEBUG
-                elog(NOTICE, "values[%i] = %s", mapped_pos, values[mapped_pos]);
+			elog(NOTICE, "values[%i] = %s", mapped_pos, values[mapped_pos] ? values[mapped_pos] : "<NULL>");
 #endif
             }
             pfree(buf);
