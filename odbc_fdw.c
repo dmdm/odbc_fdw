@@ -999,14 +999,13 @@ odbcIterateForeignScan(ForeignScanState *node)
     SQLSMALLINT columns;
     char	**values;
     HeapTuple	tuple;
-    StringInfoData	col_data;
     SQLHSTMT stmt = festate->stmt;
     bool first_iteration = festate->first_iteration;
     int num_of_table_cols = festate->num_of_table_cols;
     int num_of_result_cols;
     StringInfoData	*table_columns = festate->table_columns;
-    List *col_position_mask = NIL;
-    List *col_size_array = NIL;
+    int *col_position_mask;
+    int *col_size_array;
 
 #ifdef DEBUG
     elog(NOTICE, "odbcIterateForeignScan");
