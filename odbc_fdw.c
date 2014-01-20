@@ -1008,7 +1008,7 @@ odbcIterateForeignScan(ForeignScanState *node)
     StringInfoData	*table_columns = festate->table_columns;
     int *col_position_mask;
     int *col_size_array;
-	int *field_is_bit;
+	bool *field_is_bit;
 	EState     *estate = node->ss.ps.state;
 
 #ifdef DEBUG
@@ -1146,39 +1146,48 @@ odbcIterateForeignScan(ForeignScanState *node)
             if (mapped_pos == -1)
                 continue;
 
-            buf = (char *) palloc(sizeof(char) * col_size);
+            buf = (char *) palloc(sizeof(char) * (col_size < 2 ? 2 : col_size));
 
-            /* retrieve column data as a string */
+            /* retrieve column data  */
 			if (bit_field)
 			{
+				/* 
+				 * bit fields apparently don't work with SQL_C_CHAR 
+				 * Read it in as an unsigend char and then turn the buf into
+				 * an equivalenbt null terminated string.
+				 */
 				ret = SQLGetData(stmt, i, SQL_C_BIT,
 								 buf, sizeof(char), &indicator);
-				elog(NOTICE,"bit field: %d",buf[0]);
+				buf[0] += '0';
 				buf[1] = '\0';
 			}
 			else
+			{
+				/* just h=get everything else as a string */
 				ret = SQLGetData(stmt, i, SQL_C_CHAR,
 								 buf, sizeof(char) * col_size, &indicator);
+			}
 
+#ifdef DEBUG
 			if (ret == SQL_SUCCESS_WITH_INFO || ret == SQL_ERROR)
 			{
 				elog(NOTICE,"ret = %d",ret);
 			}
+#endif
 
             if (SQL_SUCCEEDED(ret))
             {
                 /* Handle null columns */
                 if (indicator == SQL_NULL_DATA)
 					values[mapped_pos] = NULL;
-/*
-				else if (bit_field)
-					values[mapped_pos] = ;
-*/
 				else
 					values[mapped_pos] = pstrdup(buf);
 
 #ifdef DEBUG
-			elog(NOTICE, "values[%i] = %s", mapped_pos, values[mapped_pos] ? values[mapped_pos] : "<NULL>");
+				elog(NOTICE, "values[%i] = '%s'(%d)", 
+					 mapped_pos, 
+					 values[mapped_pos] ? values[mapped_pos] : "<NULL>", 
+					 values[mapped_pos] ? (int) strlen(buf) : -1);
 #endif
             }
             pfree(buf);
