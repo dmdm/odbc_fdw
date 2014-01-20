@@ -72,6 +72,7 @@ typedef struct odbcFdwExecutionState
     bool			first_iteration;
     int			    *col_position_mask;
     int			    *col_size_array;
+	bool            *field_is_bit;
     char			*sql_count;
 } odbcFdwExecutionState;
 
@@ -1007,6 +1008,7 @@ odbcIterateForeignScan(ForeignScanState *node)
     StringInfoData	*table_columns = festate->table_columns;
     int *col_position_mask;
     int *col_size_array;
+	int *field_is_bit;
 	EState     *estate = node->ss.ps.state;
 
 #ifdef DEBUG
@@ -1043,6 +1045,7 @@ odbcIterateForeignScan(ForeignScanState *node)
 		old_cxt = MemoryContextSwitchTo(estate->es_query_cxt);
         col_position_mask = palloc(sizeof(int) * columns);
         col_size_array = palloc(sizeof(int) * columns);
+		field_is_bit = palloc0(sizeof(bool) * columns);
 		MemoryContextSwitchTo(old_cxt);
         /* Obtain the column information of the first row. */
         for (i = 1; i <= columns; i++)
@@ -1078,7 +1081,11 @@ odbcIterateForeignScan(ForeignScanState *node)
                     elog(NOTICE, "K value: %i", k);
 #endif
                     col_position_mask[i-1] = k; 
-                    col_size_array[i-1]  = (int) ColumnSizePtr;;
+                    col_size_array[i-1]  = (int) ColumnSizePtr;
+					if (DataTypePtr == SQL_C_BIT)
+					{
+						field_is_bit[i-1] = true;
+					}
                     break;
                 }
             }
@@ -1094,6 +1101,7 @@ odbcIterateForeignScan(ForeignScanState *node)
         festate->num_of_result_cols = num_of_result_cols;
         festate->col_position_mask = col_position_mask;
         festate->col_size_array = col_size_array;
+		festate->field_is_bit = field_is_bit;
         festate->first_iteration = FALSE;
     }
     else
@@ -1101,6 +1109,7 @@ odbcIterateForeignScan(ForeignScanState *node)
         num_of_result_cols = festate->num_of_result_cols;
         col_position_mask = festate->col_position_mask;
         col_size_array = festate->col_size_array;
+		field_is_bit = festate->field_is_bit;
     }
 
     ExecClearTuple(slot);
@@ -1118,6 +1127,7 @@ odbcIterateForeignScan(ForeignScanState *node)
             int mask_index = i - 1;
             int col_size = col_size_array[mask_index];
             int mapped_pos = col_position_mask[mask_index];
+			bool bit_field = field_is_bit[mask_index];
 
 #ifdef DEBUG
             /* Dump the content of the mask */
@@ -1139,14 +1149,31 @@ odbcIterateForeignScan(ForeignScanState *node)
             buf = (char *) palloc(sizeof(char) * col_size);
 
             /* retrieve column data as a string */
-            ret = SQLGetData(stmt, i, SQL_C_CHAR,
-                             buf, sizeof(char) * col_size, &indicator);
+			if (bit_field)
+			{
+				ret = SQLGetData(stmt, i, SQL_C_BIT,
+								 buf, sizeof(char), &indicator);
+				elog(NOTICE,"bit field: %d",buf[0]);
+				buf[1] = '\0';
+			}
+			else
+				ret = SQLGetData(stmt, i, SQL_C_CHAR,
+								 buf, sizeof(char) * col_size, &indicator);
+
+			if (ret == SQL_SUCCESS_WITH_INFO || ret == SQL_ERROR)
+			{
+				elog(NOTICE,"ret = %d",ret);
+			}
 
             if (SQL_SUCCEEDED(ret))
             {
                 /* Handle null columns */
                 if (indicator == SQL_NULL_DATA)
 					values[mapped_pos] = NULL;
+/*
+				else if (bit_field)
+					values[mapped_pos] = ;
+*/
 				else
 					values[mapped_pos] = pstrdup(buf);
 
