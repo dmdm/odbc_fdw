@@ -1138,7 +1138,8 @@ odbcIterateForeignScan(ForeignScanState *node)
 				elog(NOTICE, "Content of the mask:");
 				for (p=0; p<num_of_result_cols; p++)
 				{
-					elog(NOTICE, "%d => %d (%d)", p, col_position_mask[p], col_size_array[p]);
+					elog(NOTICE, "%d => %d (%d)", p, col_position_mask[p], 
+						 col_size_array[p]);
 				}
 			}
 #endif
@@ -1146,7 +1147,8 @@ odbcIterateForeignScan(ForeignScanState *node)
             if (mapped_pos == -1)
                 continue;
 
-            buf = (char *) palloc(sizeof(char) * (col_size < 2 ? 2 : col_size));
+            buf = (char *) palloc(sizeof(char) * (col_size < 2 ? 2  
+												  : col_size + 1));
 
             /* retrieve column data  */
 			if (bit_field)
@@ -1164,8 +1166,8 @@ odbcIterateForeignScan(ForeignScanState *node)
 			else
 			{
 				/* just h=get everything else as a string */
-				ret = SQLGetData(stmt, i, SQL_C_CHAR,
-								 buf, sizeof(char) * col_size, &indicator);
+				ret = SQLGetData(stmt, i, SQL_C_CHAR, buf,
+								 sizeof(char) * (col_size + 1), &indicator);
 			}
 
 #ifdef DEBUG
