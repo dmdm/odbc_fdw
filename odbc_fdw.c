@@ -21,7 +21,7 @@
 #include "postgres.h"
 #include <string.h>
 
-#if PG_VERSION_NUM < 90300 || PG_VERSION_NUM >= 90500
+/* Extended 9.3 only restriction to 9.4, since no particular incompatibility found */
 #if PG_VERSION_NUM < 90300 || PG_VERSION_NUM >= 90500
 #error wrong Postgresql version this branch is only for 9.3, 9.4
 #endif
