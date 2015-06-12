@@ -1,4 +1,4 @@
-ODBC FDW (beta) for PostgreSQL 9.1+
+ODBC FDW (beta) for PostgreSQL 9.3+
 ===================================
 
 This PostgreSQL extension implements a Foreign Data Wrapper (FDW) for
